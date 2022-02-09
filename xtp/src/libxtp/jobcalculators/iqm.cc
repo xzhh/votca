@@ -19,8 +19,10 @@
 
 // Third party includes
 #include <boost/algorithm/string/split.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/format.hpp>
+// Third party includes
+#include <boost/filesystem.hpp>
+#include <sys/stat.h>
 
 // VOTCA includes
 #include <votca/tools/constants.h>
@@ -40,6 +42,22 @@ using namespace boost::filesystem;
 
 namespace votca {
 namespace xtp {
+
+std::map<std::string, QMState> FillParseMaps(const std::string& Mapstring) {
+  std::map<std::string, QMState> type2level;
+  for (const std::string& substring : tools::Tokenizer(Mapstring, ", \t\n")) {
+    std::vector<std::string> segmentpnumber =
+        tools::Tokenizer(substring, ":").ToVector();
+    if (segmentpnumber.size() != 2) {
+      throw std::runtime_error("Parser iqm: Segment and exciton labels:" +
+                               substring + "are not separated properly");
+    }
+    QMState state = QMState(segmentpnumber[1]);
+    std::string segmentname = segmentpnumber[0];
+    type2level[segmentname] = state;
+  }
+  return type2level;
+}
 
 void IQM::ParseSpecificOptions(const tools::Property& options) {
 
@@ -114,23 +132,6 @@ void IQM::ParseSpecificOptions(const tools::Property& options) {
         options.get(key_read + ".electron").as<std::string>();
     electron_levels_ = FillParseMaps(parse_string_e);
   }
-}
-
-std::map<std::string, QMState> IQM::FillParseMaps(
-    const std::string& Mapstring) {
-  std::map<std::string, QMState> type2level;
-  for (const std::string& substring : tools::Tokenizer(Mapstring, ", \t\n")) {
-    std::vector<std::string> segmentpnumber =
-        tools::Tokenizer(substring, ":").ToVector();
-    if (segmentpnumber.size() != 2) {
-      throw std::runtime_error("Parser iqm: Segment and exciton labels:" +
-                               substring + "are not separated properly");
-    }
-    QMState state = QMState(segmentpnumber[1]);
-    std::string segmentname = segmentpnumber[0];
-    type2level[segmentname] = state;
-  }
-  return type2level;
 }
 
 void IQM::addLinkers(std::vector<const Segment*>& segments,
@@ -608,8 +609,8 @@ void IQM::WriteJobFile(const Topology& top) {
   return;
 }
 
-double IQM::GetDFTCouplingFromProp(const tools::Property& dftprop, Index stateA,
-                                   Index stateB) {
+double GetDFTCouplingFromProp(const tools::Property& dftprop, Index stateA,
+                              Index stateB) {
   double J = 0;
   bool found = false;
   for (const tools::Property* state : dftprop.Select("coupling")) {
@@ -628,9 +629,8 @@ double IQM::GetDFTCouplingFromProp(const tools::Property& dftprop, Index stateA,
   }
 }
 
-double IQM::GetBSECouplingFromProp(const tools::Property& bseprop,
-                                   const QMState& stateA,
-                                   const QMState& stateB) {
+double GetBSECouplingFromProp(const tools::Property& bseprop,
+                              const QMState& stateA, const QMState& stateB) {
   double J = 0;
   std::string algorithm = bseprop.getAttribute<std::string>("algorithm");
   bool found = false;
@@ -650,8 +650,8 @@ double IQM::GetBSECouplingFromProp(const tools::Property& bseprop,
   }
 }
 
-QMState IQM::GetElementFromMap(const std::map<std::string, QMState>& elementmap,
-                               const std::string& elementname) const {
+QMState GetElementFromMap(const std::map<std::string, QMState>& elementmap,
+                          const std::string& elementname) {
   QMState state;
   try {
     state = elementmap.at(elementname);
@@ -704,6 +704,34 @@ void IQM::ReadJobFile(Topology& top) {
     if (id.size() != 2) {
       throw std::runtime_error(
           "Getting pair ids from jobfile failed, check jobfile.");
+    }
+
+    if (!hole_levels_.empty()) {
+      XTP_LOG(Log::info, log) << "Indeces used for holes:\n";
+      for (auto [molname, state] : hole_levels_) {
+        XTP_LOG(Log::info, log) << molname << " " << state.ToString()<<"\n";
+      }
+    }
+
+    if (!electron_levels_.empty()) {
+      XTP_LOG(Log::info, log) << "Indeces used for electrons:\n";
+      for (auto [molname, state] : electron_levels_) {
+        XTP_LOG(Log::info, log) << molname << " " << state.ToString()<<"\n";
+      }
+    }
+
+    if (!singlet_levels_.empty()) {
+      XTP_LOG(Log::info, log) << "Indeces used for singlets:\n";
+      for (auto [molname, state] : singlet_levels_) {
+        XTP_LOG(Log::info, log) << molname << " " << state.ToString()<<"\n";
+      }
+    }
+
+    if (!triplet_levels_.empty()) {
+      XTP_LOG(Log::info, log) << "Indeces used for triplets:\n";
+      for (auto [molname, state] : triplet_levels_) {
+        XTP_LOG(Log::info, log) << molname << " " << state.ToString()<<"\n";
+      }
     }
 
     // segments which correspond to these ids

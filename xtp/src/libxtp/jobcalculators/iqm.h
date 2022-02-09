@@ -21,9 +21,6 @@
 #ifndef VOTCA_XTP_IQM_H
 #define VOTCA_XTP_IQM_H
 
-// Third party includes
-#include <boost/filesystem.hpp>
-#include <sys/stat.h>
 
 // VOTCA includes
 #include <votca/tools/property.h>
@@ -59,19 +56,13 @@ class IQM final : public ParallelXJobCalc<std::vector<Job> > {
   void ParseSpecificOptions(const tools::Property& user_options);
 
  private:
-  double GetBSECouplingFromProp(const tools::Property& bseprop,
-                                const QMState& stateA, const QMState& stateB);
-  double GetDFTCouplingFromProp(const tools::Property& dftprop, Index stateA,
-                                Index stateB);
+
   void SetJobToFailed(Job::JobResult& jres, Logger& pLog,
                       const std::string& errormessage);
   void WriteLoggerToFile(const std::string& logfile, Logger& logger);
   void addLinkers(std::vector<const Segment*>& segments, const Topology& top);
   bool isLinker(const std::string& name);
-  std::map<std::string, QMState> FillParseMaps(const std::string& Mapstring);
 
-  QMState GetElementFromMap(const std::map<std::string, QMState>& elementmap,
-                            const std::string& elementname) const;
 
   tools::Property dftpackage_options_;
   tools::Property gwbse_options_;
